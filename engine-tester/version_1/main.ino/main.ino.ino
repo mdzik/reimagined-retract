@@ -26,8 +26,8 @@ Servo motor;
 Hx711 scale(A1, A0);
 long offset = 0;
 
-long scale_average = 0;
-byte scale_average_num = 0;
+float scale_average = 0;
+long scale_average_num = 0;
 
 
 char inputBuffer[200];
@@ -36,13 +36,24 @@ long reg_id = 0;
 const byte buffSize = 200;
 long ndx = 0;
 
-const int th_min = 0;
-const int th_max = 70;
+const int th_min = 1300;
+const int th_max = 1800;
 int throttle = 0;
 
 
+
+ // read RPM
+
+ volatile int half_revolutions = 0;
+
+ float rpm = 0;
+ unsigned long rpm_num;
+ 
+ unsigned long lastmillis = 0;
+
+
     
-#define PRINT(T) Serial.println(T);
+//#define PRINT(T) Serial.println(T);
 #define PRINT(T);
 
 void dispatch( JsonObject& response, JsonObject& request ){
@@ -60,14 +71,14 @@ void dispatch( JsonObject& response, JsonObject& request ){
           for (ii = throttle; ii <throttle2; ii++){ 
             PRINT(ii);    
               
-            motor.write(ii); // throttle value define the speed of esc          
-            delay(1000);
+            motor.writeMicroseconds(ii); // throttle value define the speed of esc          
+            delay(100);
           }
         } else {
           for ( ii = throttle; ii > throttle2; ii--){ 
             PRINT(ii);    
-            motor.write(ii); // throttle value define the speed of esc          
-            delay(1000);
+            motor.writeMicroseconds(ii); // throttle value define the speed of esc          
+            delay(100);
           }          
         }
         throttle = ii;
@@ -77,9 +88,9 @@ void dispatch( JsonObject& response, JsonObject& request ){
         PRINT("//stop");    
         
         int ii = 0;
-        for ( ii = throttle; ii > 0; ii--){ 
+        for ( ii = throttle; ii > th_min; ii--){ 
           PRINT(ii);    
-          motor.write(ii); // throttle value define the speed of esc          
+          motor.writeMicroseconds(ii); // throttle value define the speed of esc          
           delay(100);
         }          
         throttle = 0;
@@ -87,33 +98,36 @@ void dispatch( JsonObject& response, JsonObject& request ){
       
     if (strcmp(request.get<const char*>("r"), "start") == 0){
         PRINT("//stop");    
-        throttle = 63;
-        int ii = 0;
+        throttle = th_min;
+        int ii = th_min - 10;
         for ( ii = 0; ii < throttle; ii++){ 
           PRINT(ii);    
-          motor.write(ii); // throttle value define the speed of esc          
+          motor.writeMicroseconds(ii); // throttle value define the speed of esc          
           delay(10);
         }          
       }
   
     // In other case, you can do root.set<long>("time", 1351824120);
-    response["f"] = ((float)scale_average/scale_average_num - offset) / 742.f ;
+    response["f"] = ((float)scale_average - offset) / 742.f ;
     response["fn"] = scale_average_num;
     response["th"] = throttle;
+    response["rpm"] = rpm;
     PRINT("//weight printed");
 
     scale_average = 0;
     scale_average_num = 0;
+    rpm = 0;
+    rpm_num = 0;
     
 }
 
-
-
-
-void setup() {
+ void setup(){
+ 
+  attachInterrupt(0, rpm_fan, FALLING);
+ 
   offset = scale.averageValue();
   motor.attach(MOTOR_PIN);
-  motor.write(0);
+  motor.writeMicroseconds(0);
 
   Serial.begin(19200);
   Serial.println("{s: w}");  
@@ -189,68 +203,28 @@ dbg = 0;
 
 
 
- scale_average += scale.getValue();
+ scale_average = (float)( scale_average*scale_average_num + scale.getValue() ) / (scale_average_num + 1);
  scale_average_num++;
 
 
-}
 
-
-
-
-
-/*
-void loop() {
-
-  StaticJsonBuffer<200> jsonBuffer;
-    
-  byte maxChars = buffSize - 1; // use full size of buffer for this function
-
-  byte charCount = 0; 
-  byte ndx = 0;       
-    
-  if (Serial.available() > 0) {
-    while (Serial.available() > 0) {
-      if (ndx > maxChars - 1) {
-        ndx = maxChars;
-      }
-      inputBuffer[ndx] = Serial.read();
-    
-      ndx ++;       
-      charCount ++;
-    }
-
-    JsonObject& root = jsonBuffer.parseObject(inputBuffer);
-  
-    // Test if parsing succeeds.
-    if (!root.success()) {
-      Serial.print( inputBuffer );
-      Serial.print( "  " );
-      Serial.print( ndx );
-      Serial.println(" - parseObject() failed");
-    
-    } else {
-      reg = root["reg"];  
-    }    
-    for (int i =0; i < buffSize; i++){
-      inputBuffer[i] = 0x0;  
-    }
-  
-    JsonObject& root2 = jsonBuffer.createObject();
-  
-    // In other case, you can do root.set<long>("time", 1351824120);
-    root2["f"] = (float)(scale.getValue() - offset) / 742.f;
-    root2["time"] = millis();
-    root2["reg"] = reg;
-  
-    root2.printTo(Serial);
-    Serial.println();
+ if (millis() - lastmillis >= 10){ //Uptade every one second, this will be equal to reading frecuency (Hz).
+   const unsigned long dt = millis() - lastmillis;
+   detachInterrupt(0);//Disable interrupt when calculating
+   rpm =  (rpm * rpm_num   + (float)( half_revolutions * 30000. / dt )) / ((float)(rpm_num + 1.)); // Convert frecuency to RPM, note: this works for one interruption per full rotation. For two interrups per full rotation use half_revolutions * 30.
+   rpm_num++;
+   half_revolutions = 0; // Restart the RPM counter
+   lastmillis = millis(); // Uptade lasmillis
+   attachInterrupt(0, rpm_fan, FALLING); //enable interrupt
   }
 
 }
 
+ // this code will be executed every time the interrupt 0 (pin2) gets low.
 
-*/
+ void rpm_fan(){
+  half_revolutions++;
+ }
 
 
    

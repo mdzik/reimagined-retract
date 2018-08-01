@@ -29,6 +29,7 @@ import serial
 import json
 import numpy as np
 
+import time
 
 
 class MyDynamicMplCanvas(FigureCanvas):
@@ -39,7 +40,7 @@ class MyDynamicMplCanvas(FigureCanvas):
         fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes1 = fig.add_subplot(211)
         self.axes2 = fig.add_subplot(212)
-
+        self.axes3 = self.axes1.twinx()
         self.compute_initial_figure()
 
         FigureCanvas.__init__(self, fig)
@@ -65,7 +66,7 @@ class MyDynamicMplCanvas(FigureCanvas):
         
         timer = QtCore.QTimer(self)
         timer.timeout.connect(self.update_figure)
-        timer.start(1000)
+        timer.start(100)
 
     def compute_initial_figure(self):
         pass
@@ -85,7 +86,8 @@ class MyDynamicMplCanvas(FigureCanvas):
                 self.f_force.append(tmp['f'])
                 self.f_force_an.append(tmp['fn'])
                 self.f_times.append(tmp['t'])
-                self.f_rpm.append(tmp['th'])
+                self.f_rpm.append(tmp['rpm'])
+             #   print tmp['rpm']
                 i = 100
             except ValueError:
                 pass
@@ -97,10 +99,13 @@ class MyDynamicMplCanvas(FigureCanvas):
         
         
         self.axes1.cla()
+        self.axes3.cla()
         rng = -20
         self.axes1.plot(self.f_times[rng:], self.f_force[rng:], 'ro-', lw=1)
         avg = np.average(self.f_force[rng:])
         self.axes1.plot(self.f_times[rng:], np.ones_like(self.f_force[rng:])*avg, 'k--')
+        
+        self.axes3.plot(self.f_times[rng:], self.f_rpm[rng:], 'go-')
 
         self.axes2.cla()
         rpms = np.unique(self.f_rpm)
@@ -127,17 +132,24 @@ class MyDynamicMplCanvas(FigureCanvas):
         self.ser.write( json.dumps({'r':"stop"}) )
 
     def set_cycle(self):
-        perc = self.ct + 1
-        if perc < 98:
+        perc = self.ct + 5
+        if perc < 100:
             self.set_throttle(perc)
             self.ct = perc
         else:
             self.ctimer.stop()
-            self.set_throttle(int(59./70. * 100.))
+            self.set_throttle(10)
+            
+            np.savez("save-"+str( time.time() )+'.npz', np.array([ self.f_force, self.f_rpm, self.f_times, self.f_force_an ]))
 
+            self.f_force = list()        
+            self.f_rpm = list()
+            self.f_times = list()
+            self.f_force_an = list() 
+                
     
     def cycle(self):
-        self.ct = int(59./70. * 100.)
+        self.ct = int(10.)
         self.set_throttle(self.ct)
   
         
@@ -183,10 +195,10 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.scale_menu.addAction('&Tare', dc.tare)
         
         self.motor_menu.addAction('&%d'%(0), lambda: dc.set_throttle(0))
-        self.motor_menu.addAction('&%d'%(75), lambda: dc.set_throttle(75))        
-        self.motor_menu.addAction('&%d'%(80), lambda: dc.set_throttle(80))
-        self.motor_menu.addAction('&%d'%(85), lambda: dc.set_throttle(85))
-        self.motor_menu.addAction('&%d'%(90), lambda: dc.set_throttle(90))        
+        self.motor_menu.addAction('&%d'%(20), lambda: dc.set_throttle(20))        
+        self.motor_menu.addAction('&%d'%(40), lambda: dc.set_throttle(40))
+        self.motor_menu.addAction('&%d'%(60), lambda: dc.set_throttle(60))
+        self.motor_menu.addAction('&%d'%(80), lambda: dc.set_throttle(80))        
         
         self.motor_menu.addAction('&Start', lambda: dc.set_start())        
         self.motor_menu.addAction('&Stop', lambda: dc.set_stop())                
