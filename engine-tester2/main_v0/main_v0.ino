@@ -1,4 +1,4 @@
-#include <Wire.h>
+    #include <Wire.h>
 
 // LCD
 #include <hd44780.h>                       // main hd44780 header
@@ -40,6 +40,13 @@ long  scale_average_num = 0;
 long  scale_offset = 0;
 
 
+volatile int  rpm_half_revolutions = 0;
+float         rpm_value = 0;
+unsigned long rpm_num;
+unsigned long rpm_lastmillis = 0;
+
+
+
 //end globals
 
 
@@ -79,7 +86,7 @@ int status;
         debouncers[i].set_debounce_stable(debounce);
         debouncers[i].set_callback(debounce_callback, &buttons[i]);    
   }
-
+  attachInterrupt(0, rpm_interupt, FALLING); //enable interrupt
 }
 
 
@@ -119,6 +126,7 @@ void debounce_callback(bool value, const int* i) {
 
 
 unsigned int loopi = 0;
+bool swth = true;
 
 void buttons_and_lcd(){
   for (int i=0; i<ARRAY_SIZE(buttons); i++) {
@@ -129,23 +137,49 @@ void buttons_and_lcd(){
   if ( millis() - loop_last_time > 1000) {
     loop_last_time = millis();
     lcd.clear();
-    //#lcd.print("Hello, World!");
-    for(int i = 0; i < 4; i++){
-      
+    
+    //lcd.print("Hello, World!");
+    /*for(int i = 0; i < 4; i++){
+     
         lcd.print(buttons_s[i]);
         lcd.print(" ");
       
-    }  
+    }
+    */  
     //lcd.print("\n");
-    lcd.print(motor_value);
+    if (loopi > 25 ) {
+      swth = ! swth;
+      loopi = 0;
+    }
+    
+    if ( swth ) { 
+      lcd.print("ESC: ");
+      lcd.print(motor_value);
+    } else {
+      lcd.print("RPM: ");
+      lcd.print(rpm_value);
+    }
 
     lcd.setCursor(0,1);
-    lcd.print(scale_value);
-    lcd.print("/");
-    //lcd.print(scale_average);
-    lcd.print("/");
-    lcd.print(scale_average_num);
+
+    if ( swth ) { 
+      lcd.print("M: ");
+      lcd.print(scale_value);
+    } else {
+      lcd.print("I: ");
+      lcd.print(rpm_half_revolutions);
+    }    
     
+    lcd.print("/");
+    lcd.print(loopi);
+
+    Serial.print(motor_value);
+    Serial.print(";");  
+    Serial.print(rpm_value);
+    Serial.print(";");    
+    Serial.print(scale_value);
+    Serial.print(";");    
+    Serial.println(motor_value);
     
   }  
 }
@@ -164,10 +198,30 @@ void force() {
 
 
 }
-void loop() {
 
+ // this code will be executed every time the interrupt 0 (pin2) gets low.
+void update_rpm(){
+ if (millis() - rpm_lastmillis >= 10){ //Uptade every one second, this will be equal to reading frecuency (Hz).
+   detachInterrupt(0);//Disable interrupt when calculating
+   const unsigned long dt = millis() - rpm_lastmillis;
+   //rpm_avg =  (rpm * rpm_num   + (float)( half_revolutions * 30000. / dt )) / ((float)(rpm_num + 1.));
+   rpm_value =   (float)( rpm_half_revolutions * 30000. / dt ) ;
+   //rpm_num++;
+   rpm_half_revolutions = 0; // Restart the RPM counter
+   rpm_lastmillis = millis(); // Uptade lasmillis
+   attachInterrupt(0, rpm_interupt, FALLING); //enable interrupt
+  }  
+}
+void rpm_interupt(){
+  rpm_half_revolutions++;
+}
+
+void loop() {
+  
+  /*update_rpm();
   force();
   buttons_and_lcd();
   motor.writeMicroseconds(motor_value);
+  */
   
 }

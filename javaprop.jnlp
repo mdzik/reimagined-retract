@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<!-- JNLP File for the JavaProp Application --> 
+<jnlp
+  spec="1.0+" 
+  codebase="http://www.mh-aerotools.de/airfoils" 
+  href="java/ws/javaprop.jnlp"> 
+  <information> 
+    <title>JavaProp Application</title> 
+    <vendor>MH AeroTools - Martin Hepperle</vendor> 
+    <homepage href="javaprop.htm"/> 
+    <description>JavaProp Propeller Design and Analysis</description> 
+    <description kind="short">JavaProp Application.</description> 
+    <icon href="java/ws/javaprop32.jpg" width="32" height="32"/> 
+    <icon href="java/ws/javaprop64.jpg" width="64" height="64"/> 
+    <icon kind="splash" href="java/ws/javapropsplash.jpg"/> 
+    <offline-allowed/> 
+  </information> 
+  <security> 
+      <sandbox/> 
+  </security> 
+  <resources> 
+    <j2se version="1.5+"/> 
+    <jar href="java/javaprop.jar"/> 
+    <jar href="java/mhclasses.jar"/> 
+  </resources> 
+  <application-desc main-class="MH.JavaProp.JavaProp"/> 
+</jnlp> 
