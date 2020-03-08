@@ -17,6 +17,8 @@
 #include <helpers.h>
 #include <dataframe.h>
 //HX711 constructor (dout pin, sck pin):
+
+#define interruptPin 3
 HX711_ADC LoadCell_a(4, 5);
 HX711_ADC LoadCell_b(6, 7);
 
@@ -24,6 +26,7 @@ int eepromAdress_a = 0;
 int eepromAdress_b = 0;
 
 long t;
+
 
 void setup(){
   
@@ -35,25 +38,43 @@ void setup(){
   setup_one_cell(LoadCell_a);
   setup_one_cell(LoadCell_b);
 
-
+  pinMode(interruptPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interruptPin), record_spin, RISING);
 
 }
 
 float t;
+float millis_per_10spin = 250;
+volatile long spins = 0;
+
+void record_spin(){
+  spins = spins + 1;
+}
 
 void loop() {
   //update() should be called at least as often as HX711 sample rate; >10Hz@10SPS, >80Hz@80SPS
   //longer delay in sketch will reduce effective sample rate (be carefull with delay() in the loop)
-  LoadCell_a.update();
-  LoadCell_b.update();
-
+  noInterrupts();  
+    LoadCell_a.update();
+    LoadCell_b.update();
+    const int current_spins = spins;
+  interrupts();
   //get smoothed value from the data set
-  if (millis() > t + 250) {
+
+  millis_per_10spin = t / (float)current_spins;
+
+  // 25000 rpm -> millis_per_10spin ~ 20
+  const float dt = millis_per_10spin 
+  if (millis() > t + dt) {
 
     DataFrame dataframe;
 
     dataframe.f1 = LoadCell_a.getData();
     dataframe.f1 = LoadCell_b.getData();
+
+    noInterrupts();  
+    if (spins > 10)
+    interrupts();
 
     dataframe.timestamp = millis();
 
@@ -77,10 +98,15 @@ void loop() {
     {
       case 't':
           LoadCell_a.tareNoDelay();
-          LoadCell_b.tareNoDelay();
+          LoadCell_b.tareNoDelay(); 
+          //check if last tare operation is complete
+          while (!LoadCell_a.getTareStatus() || !LoadCell_b.getTareStatus()) {
+            debug("Tare in progress  v v v");
+          }
+                    
         break;
       case 'c':
-          status_ok &= calibrate(LoadCell_a, eepromAdress_a);
+          bool status_ok &= calibrate(LoadCell_a, eepromAdress_a);
           status_ok &= calibrate(LoadCell_b, eepromAdress_b);
           dataframe.status = status_ok ? 't' : 'e';
         break;
@@ -90,9 +116,6 @@ void loop() {
     }
   }
 
-  //check if last tare operation is complete
-  if (LoadCell.getTareStatus() == true) {
-    debug("Tare complete");
-  }
+
 
 }
