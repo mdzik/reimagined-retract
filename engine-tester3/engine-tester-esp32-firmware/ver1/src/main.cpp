@@ -18,15 +18,31 @@
 #include <dataframe.h>
 //HX711 constructor (dout pin, sck pin):
 
-#define interruptPin 3
-HX711_ADC LoadCell_a(4, 5);
-HX711_ADC LoadCell_b(6, 7);
+#define interruptPin D7
+const float millis_per_10samples = 100;
+HX711_ADC LoadCell_a(D0, D1);
+HX711_ADC LoadCell_b(D3, D4);
 
 int eepromAdress_a = 0;
 int eepromAdress_b = 0;
 
 long t;
 
+
+//float millis_per_10spin = 250;
+volatile unsigned long spins = 0;
+
+void ICACHE_RAM_ATTR record_spin(){
+  noInterrupts();  
+  spins = spins + 1;
+  interrupts();  
+}
+
+// ############################################################################################
+// ############################################################################################
+// ############################################################################################
+// ############################################################################################
+// ############################################################################################
 
 void setup(){
   
@@ -38,84 +54,100 @@ void setup(){
   setup_one_cell(LoadCell_a);
   setup_one_cell(LoadCell_b);
 
-  pinMode(interruptPin, INPUT_PULLUP);
+  //pinMode(interruptPin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(interruptPin), record_spin, RISING);
 
 }
 
-float t;
-float millis_per_10spin = 250;
-volatile long spins = 0;
-
-void record_spin(){
-  spins = spins + 1;
-}
-
+long i = 0;
 void loop() {
+  i = i + 1;
   //update() should be called at least as often as HX711 sample rate; >10Hz@10SPS, >80Hz@80SPS
   //longer delay in sketch will reduce effective sample rate (be carefull with delay() in the loop)
-  noInterrupts();  
-    LoadCell_a.update();
-    LoadCell_b.update();
-    const int current_spins = spins;
-  interrupts();
+  static boolean newDataReady = 0;
+  unsigned long current_spins = 0;
+  if (LoadCell_a.update() && LoadCell_b.update()) newDataReady = true;
+  
+
+
+
+ // delay(1000);
+  
   //get smoothed value from the data set
 
-  millis_per_10spin = t / (float)current_spins;
+  const unsigned long current_time = millis();
+
+
+ // millis_per_10spin = (float)(current_time - t) / (float)current_spins;
 
   // 25000 rpm -> millis_per_10spin ~ 20
-  const float dt = millis_per_10spin 
-  if (millis() > t + dt) {
+ // const float dt = 10 * millis_per_10spin;
 
+
+  // ######################################################################
+ // if (current_spins > 10) {
+ if (newDataReady && i > 50000) {
+    i = 0;
+    current_spins = spins;
     DataFrame dataframe;
+    dataframe.f1 = -1;
+    dataframe.f2 = -1;
+    dataframe.timestamp = current_time;
+    dataframe.rpms = (float)current_spins / (float)(current_time - t) * 60000.;
+    dataframe.spins = current_spins;
+    dataframe.status = 'd';
+   // noInterrupts();
+       
+  
+       //spins = 0;
+       dataframe.f1 = LoadCell_a.getData();
+       dataframe.f2 = LoadCell_b.getData();
 
-    dataframe.f1 = LoadCell_a.getData();
-    dataframe.f1 = LoadCell_b.getData();
 
-    noInterrupts();  
-    if (spins > 10)
-    interrupts();
-
-    dataframe.timestamp = millis();
-
-    Serial.write( (byte*)&dataframe, sizeof(DataFrame) );
+    //interrupts();
+ 
+    serialWriteData(dataframe);
 
     t = millis();
+
   }
 
-  //receive from serial terminal
-  if (Serial.available() > 0) {
-    float i;
-    char inByte = Serial.read();
-    bool status_ok = true;
 
-    DataFrame dataframe;
-    dataframe.f1 = -1;
-    dataframe.f1 = -1;
-    dataframe.timestamp = millis();    
+  // // ######################################################################
+  // //receive from serial terminal
+  // if (Serial.available() > 0) {
+    
+  //   char inByte = Serial.read();
+  //   bool status_ok = true;
 
-    switch (inByte)
-    {
-      case 't':
-          LoadCell_a.tareNoDelay();
-          LoadCell_b.tareNoDelay(); 
-          //check if last tare operation is complete
-          while (!LoadCell_a.getTareStatus() || !LoadCell_b.getTareStatus()) {
-            debug("Tare in progress  v v v");
-          }
-                    
-        break;
-      case 'c':
-          bool status_ok &= calibrate(LoadCell_a, eepromAdress_a);
-          status_ok &= calibrate(LoadCell_b, eepromAdress_b);
-          dataframe.status = status_ok ? 't' : 'e';
-        break;
+  //   DataFrame dataframe;
+  //   dataframe.f1 = -1;
+  //   dataframe.f1 = -1;
+  //   dataframe.timestamp = millis();    
+
+  //   switch (inByte)
+  //   {
+  //     case 't':
+  //         LoadCell_a.tareNoDelay();
+  //         LoadCell_b.tareNoDelay();
+  //         //check if last tare operation is complete
+  //         while (!LoadCell_a.getTareStatus() || !LoadCell_b.getTareStatus()) {
+  //           debug("Tare in progress  v v v");
+  //         }
+                   
+  //       break;
+  //     case 'c':
+  //         status_ok &= calibrate(LoadCell_a, eepromAdress_a);
+  //         status_ok &= calibrate(LoadCell_b, eepromAdress_b);
+  //       break;
       
-      default:
-        break;
-    }
-  }
+  //     default:
+  //       break;
+  //   }
 
+  //   dataframe.status = status_ok ? 't' : 'e';
 
+  //   serialWriteData(&dataframe);
 
+  // }
 }

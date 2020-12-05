@@ -5,6 +5,11 @@ inline void debug(const char* line){
   Serial.println(line);
 };
 
+
+inline void error(const char* line){
+  Serial.println(line);
+};
+
 bool calibrate(HX711_ADC& LoadCell, const int& eepromAdress ) {
   debug("***");
   debug("Start calibration:");
@@ -73,14 +78,17 @@ bool calibrate(HX711_ADC& LoadCell, const int& eepromAdress ) {
 void setup_one_cell(HX711_ADC& LoadCell) {
   LoadCell.begin();
   long stabilisingtime = 2000; // tare preciscion can be improved by adding a few seconds of stabilising time
-  LoadCell.start(stabilisingtime);
+  LoadCell.start(stabilisingtime, true);
   if (LoadCell.getTareTimeoutFlag()) {
     error("Tare timeout, check MCU>HX711 wiring and pin designations");
   }
   else {
-    LoadCell.setCalFactor(1.0); // user set calibration value (float)
+    LoadCell.setCalFactor(1000.); // user set calibration value (float)
     debug("Startup + tare is complete");
   }
   while (!LoadCell.update());
   
 }
+
+
+
