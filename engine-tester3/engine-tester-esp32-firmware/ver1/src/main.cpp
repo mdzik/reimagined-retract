@@ -24,7 +24,7 @@ HX711_ADC LoadCell_a(D0, D1);
 HX711_ADC LoadCell_b(D3, D4);
 
 int eepromAdress_a = 0;
-int eepromAdress_b = 0;
+int eepromAdress_b = 1;
 
 long t;
 
@@ -51,8 +51,8 @@ void setup(){
   
   Serial.println();
 
-  setup_one_cell(LoadCell_a);
-  setup_one_cell(LoadCell_b);
+  setup_one_cell(LoadCell_a, eepromAdress_a);
+  setup_one_cell(LoadCell_b, eepromAdress_b);
 
   //pinMode(interruptPin, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(interruptPin), record_spin, RISING);
@@ -68,20 +68,7 @@ void loop() {
   unsigned long current_spins = 0;
   if (LoadCell_a.update() && LoadCell_b.update()) newDataReady = true;
   
-
-
-
- // delay(1000);
-  
-  //get smoothed value from the data set
-
   const unsigned long current_time = millis();
-
-
- // millis_per_10spin = (float)(current_time - t) / (float)current_spins;
-
-  // 25000 rpm -> millis_per_10spin ~ 20
- // const float dt = 10 * millis_per_10spin;
 
 
   // ######################################################################
@@ -96,15 +83,12 @@ void loop() {
     dataframe.rpms = (float)current_spins / (float)(current_time - t) * 60000.;
     dataframe.spins = current_spins;
     dataframe.status = 'd';
-   // noInterrupts();
-       
-  
-       //spins = 0;
+    noInterrupts();
+    //spins = 0;
        dataframe.f1 = LoadCell_a.getData();
        dataframe.f2 = LoadCell_b.getData();
-
-
-    //interrupts();
+       spins = 0;
+    interrupts();
  
     serialWriteData(dataframe);
 
@@ -113,41 +97,41 @@ void loop() {
   }
 
 
-  // // ######################################################################
-  // //receive from serial terminal
-  // if (Serial.available() > 0) {
+  // ######################################################################
+  //receive from serial terminal
+  if (Serial.available() > 0) {
     
-  //   char inByte = Serial.read();
-  //   bool status_ok = true;
+    char inByte = Serial.read();
+    bool status_ok = true;
 
-  //   DataFrame dataframe;
-  //   dataframe.f1 = -1;
-  //   dataframe.f1 = -1;
-  //   dataframe.timestamp = millis();    
+    DataFrame dataframe;
+    dataframe.f1 = -1;
+    dataframe.f1 = -1;
+    dataframe.timestamp = millis();    
 
-  //   switch (inByte)
-  //   {
-  //     case 't':
-  //         LoadCell_a.tareNoDelay();
-  //         LoadCell_b.tareNoDelay();
-  //         //check if last tare operation is complete
-  //         while (!LoadCell_a.getTareStatus() || !LoadCell_b.getTareStatus()) {
-  //           debug("Tare in progress  v v v");
-  //         }
+    switch (inByte)
+    {
+      case 't':
+          LoadCell_a.tareNoDelay();
+          LoadCell_b.tareNoDelay();
+          //check if last tare operation is complete
+          while (!LoadCell_a.getTareStatus() || !LoadCell_b.getTareStatus()) {
+            debug("Tare in progress  v v v");
+          }
                    
-  //       break;
-  //     case 'c':
-  //         status_ok &= calibrate(LoadCell_a, eepromAdress_a);
-  //         status_ok &= calibrate(LoadCell_b, eepromAdress_b);
-  //       break;
+        break;
+      case 'c':
+          status_ok &= calibrate(LoadCell_a, eepromAdress_a);
+          status_ok &= calibrate(LoadCell_b, eepromAdress_b);
+        break;
       
-  //     default:
-  //       break;
-  //   }
+      default:
+        break;
+    }
 
-  //   dataframe.status = status_ok ? 't' : 'e';
+    dataframe.status = status_ok ? 't' : 'e';
 
-  //   serialWriteData(&dataframe);
+    serialWriteData(dataframe);
 
-  // }
+  }
 }
