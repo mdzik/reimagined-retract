@@ -2,13 +2,62 @@
 package main
 
 import (
+	"bufio"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"log"
+	"math"
 	"net/http"
 	"strconv"
 
 	"github.com/gorilla/websocket"
+	"github.com/tarm/serial"
 )
+
+func start_serial() {
+	config := &serial.Config{
+		Name:        "/dev/ttyUSB0",
+		Baud:        9600,
+		ReadTimeout: 1,
+		Size:        8,
+	}
+
+	stream, err := serial.OpenPort(config)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for {
+		scanner := bufio.NewScanner(stream)
+
+		for scanner.Scan() {
+			buf := make([]byte, 1024)
+			buf = scanner.Bytes()
+			n := len(buf)
+			if 'E' == buf[n-1] && 'S' == buf[0] {
+				fmt.Println(buf)
+				fmt.Println(math.Float32frombits(binary.LittleEndian.Uint32(buf[1:])))
+				fmt.Println(math.Float32frombits(binary.LittleEndian.Uint32(buf[5:])))
+			} else {
+				fmt.Println(scanner.Text())
+			}
+
+			/*
+				struct DataFrame {
+					float f1;
+					float f2;
+					unsigned long timestamp;
+					unsigned long spins;
+					float rpms;
+					char status = 'o';
+				};
+			*/
+		}
+		if err := scanner.Err(); err != nil {
+			log.Fatal(err)
+		}
+	}
+}
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -57,7 +106,9 @@ func main() {
 		http.ServeFile(w, r, "websockets.html")
 	})
 
-	http.ListenAndServe(":8080", nil)
+	go http.ListenAndServe(":8080", nil)
+
+	start_serial()
 }
 
 // package main

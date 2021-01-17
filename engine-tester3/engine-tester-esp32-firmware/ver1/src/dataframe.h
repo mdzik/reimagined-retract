@@ -17,8 +17,9 @@ void serialWriteData(DataFrame dataframe){
     sprintf(buffer, "spins  -> %ld", dataframe.spins); Serial.println( buffer );
     sprintf(buffer, "rpms  -> %f", dataframe.rpms); Serial.println( buffer );
     sprintf(buffer, "state -> %c", dataframe.status); Serial.println( buffer );
-
-
-
+    Serial.write('S');
+    Serial.write((const char *)&dataframe, sizeof(DataFrame));
+    Serial.write('E');
+    Serial.write('\n');
    // Serial.write( (byte*)&dataframe, sizeof(DataFrame) );
 }
